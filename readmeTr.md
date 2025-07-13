@@ -78,158 +78,34 @@ loginCustomerId = "MCC_ID" # Yöneticiler için opsiyonel
 
 ---
 
-## Genel Bakış
-Bu doküman, Google Ads API özelliklerinin sisteme nasıl entegre edildiğini, `customer` (reklamveren) ve `superadmin` (yönetici) taraflarının sorumluluklarını ayırarak açıklar. Ayrıca, her ana işlem için veri akışını ve iletilen parametreleri detaylandırır; özellikle kredi limiti (fatura) ödeme iş akışına odaklanır.
+## İçindekiler
+- [Genel Bakış](#genel-bakış)
+- [İlişki Diyagramı](#görsel-ilişki-diyagramı)
+- [Entegrasyon Akışı](#entegrasyon-akışı)
+- [API Uç Nokta & Parametre Referansı](#google-ads-api-uç-nokta--parametre-referansı-v20)
+  - [Hesap Oluşturma](#1-hesap-oluşturma-customerservice)
+  - [Kullanıcı Daveti/Erişim](#2-kullanıcı-daveterişim-customeruseraccessinvitations)
+  - [Faturalandırma Kurulumu](#3-faturalandırma-kurulumu-paymentsaccountbudgets)
+  - [Hesap Bütçesi/Yükleme](#4-hesap-bütçesiyükleme-accountbudgets)
+  - [Hesap Durumu/Askıya Alma](#5-hesap-durumu-askıya-alma)
+  - [Fatura Sorgulama](#6-fatura-sorgulama-invoices)
+  - [Harcama Takibi/Raporlama](#7-harcama-takibiraporlama)
+- [Harcama Takibi: En Basit Rehber](#harcama-takibi-en-basit-rehber)
+- [Kontrol Listesi](#kontrol-listesi)
 
 ---
 
-## Özellik Eşlemesi: Müşteri vs. Superadmin
+## Google Ads API Uç Nokta Özeti
 
-| Özellik                  | API Servisi/Kaynağı                  | Müşteri Tarafı (customer/) | Superadmin Tarafı (superadmin/) | Aktarılan Parametreler/Veriler         |
-|-------------------------|---------------------------------------|:-------------------------:|:-------------------------------:|----------------------------------------|
-| Hesap Oluşturma         | CustomerService                       | Yeni hesap talep et        | API ile hesap oluştur           | Müşteri adı, e-posta, işletme bilgisi  |
-| Erişim Daveti           | CustomerUserAccessInvitationService   | Davetleri talep/görüntüle  | Davet gönder/iptal et           | Kullanıcı e-postası, erişim seviyesi   |
-| Reklamveren Doğrulama   | Customer/CustomerClient               | Durumu görüntüle           | Doğrulama kontrol/tetikle        | Hesap ID                               |
-| Faturalandırma Kurulumu | BillingSetupService                   | Fatura bilgisini görüntüle | Ödeme profilini bağla (fatura)   | Hesap ID, ödeme profili                |
-| Bakiye Yükleme (Topup)  | AccountBudgetService                  | Yükleme talep/görüntüle    | API ile bütçe ayarla/düzenle     | Hesap ID, bütçe tutarı                 |
-| Fatura                  | InvoiceService                        | Faturaları görüntüle/indir | API ile fatura getir             | Hesap ID, fatura dönemi                |
-
----
-
-## Entegrasyon Akışı
-
-```mermaid
-flowchart TD
-    subgraph Müşteri
-        A["Hesap Oluşturma Talebi"]
-        B["Bakiye Yükleme Talebi"]
-        C["Bakiye/Fatura Görüntüle"]
-        D["Kullanıcı Erişim Talebi"]
-    end
-    subgraph Superadmin
-        E["API ile Hesap Oluştur"]
-        F["Faturalandırma Kurulumu (Fatura)"]
-        G["Hesap Bütçesi Ayarla"]
-        H["Kullanıcı Daveti Gönder"]
-        I["Faturaları Getir"]
-        J["Doğrulama Kontrolü"]
-    end
-    A-->|Müşteri bilgisi|E
-    E-->|Hesap ID|F
-    B-->|Yükleme tutarı, Hesap ID|G
-    D-->|Kullanıcı e-posta, erişim|H
-    C-->|Hesap ID|I
-    E-->|Hesap ID|J
-```
-
----
-
-## Müşteriden Superadmin/API'ye Aktarılan Veri/Parametreler
-
-- **Hesap Oluşturma:**
-  - Müşteri adı
-  - E-posta
-  - İşletme bilgisi (adres, telefon vb.)
-- **Erişim Daveti:**
-  - Davet edilecek e-posta
-  - Erişim seviyesi (yönetici, standart, salt okunur)
-- **Bakiye Yükleme Talebi:**
-  - Tutar
-  - Hesap ID
-- **Fatura Görüntüleme:**
-  - Hesap ID
-  - Tarih aralığı/dönemi
-
----
-
-## Entegrasyon Noktası Örnekleri
-
-- **Müşteri Paneli:**
-  - Bakiyeler, bütçeler, faturalar gösterilir (veriler backend veya superadmin üzerinden API ile çekilir).
-  - Yeni hesap, bakiye yükleme ve kullanıcı erişim talepleri yapılabilir.
-- **Superadmin Paneli:**
-  - Tüm Google Ads API çağrılarını yönetir (hesap oluşturma, faturalandırma kurulumu, bütçe yönetimi, fatura çekme, kullanıcı daveti, doğrulama kontrolü).
-  - Müşteri taleplerini onaylar ve işler.
-
----
-
-## Güvenlik & Yetkilendirme
-
-- Sadece superadmin, Google Ads API kimlik bilgilerine sahip olur ve hassas API işlemlerini gerçekleştirir.
-- Müşteri işlemleri sadece taleptir; superadmin onaylar ve API üzerinden uygular.
-- Tüm hassas veriler (API anahtarları, ödeme profilleri) superadmin tarafından sunucu tarafında yönetilir.
-
----
-
-## Bu Sistemde Google Ads API'leri Nasıl Entegre Edilir?
-
-### Mevcut SQL Parametreleri vs. Google Ads API Parametreleri
-
-| Özellik                  | SQL Parametre(ler)i                        | Google Ads API Parametre(ler)i         |
-|-------------------------|--------------------------------------------|----------------------------------------|
-| Hesap Oluşturma         | user_id, account_name, gmail, timezone, account_budget | customer_name, email, timezone, currency, account_budget |
-| Erişim Daveti           | email, access_level, account_id            | email_address, access_role, customer_id |
-| Bakiye Yükleme (Topup)  | account_id, amount                         | customer_id, amount_micros              |
-| Fatura                  | account_id, tarih aralığı                  | customer_id, issue_year, issue_month    |
-| Faturalandırma Kurulumu | account_id, payment_profile                | customer_id, payments_account           |
-| Reklamveren Doğrulama   | account_id                                 | customer_id                             |
-
-### Entegrasyon Akışı Örneği
-
-1. **Müşteri Tarafı:**
-   - Kullanıcı, panelden (ör. hesap oluşturma, bakiye yükleme, erişim daveti) talep gönderir.
-   - Veri, superadmin backend'ine (eşleşen parametrelerle) iletilir.
-
-2. **Superadmin Tarafı:**
-   - Talebi alır, doğrular/onaylar.
-   - Uygun Google Ads API uç noktasını eşleşen parametrelerle çağırır.
-   - Sonucu/durumu yerel veritabanına kaydeder.
-
-### Örnek: Bakiye Yükleme Talebi (Hesap Bütçesi)
-
-- **Müşteri gönderir:**
-  - `account_id`, `amount`
-- **Superadmin Google Ads API çağırır:**
-  ```php
-  $accountBudgetProposal = new AccountBudgetProposal([
-      'customer_id' => $customerId, // account_id eşlemesinden
-      'amount_micros' => $amount * 1000000, // Mikros'a çevir
-      // ... gerekirse diğer parametreler
-  ]);
-  // mutateAccountBudgetProposal() ile çağır
-  ```
-
-### Örnek: Hesap Oluşturma
-- **Müşteri gönderir:**
-  - `account_name`, `gmail`, `timezone`, `account_budget`
-- **Superadmin Google Ads API çağırır:**
-  ```php
-  $customer = new Customer([
-      'descriptive_name' => $accountName,
-      'currency_code' => $currency,
-      'time_zone' => $timezone,
-      // ... diğer parametreler
-  ]);
-  // CustomerService.MutateCustomer() ile oluştur
-  ```
-
-### Örnek: Erişim Daveti
-- **Müşteri gönderir:**
-  - `email`, `access_level`, `account_id`
-- **Superadmin Google Ads API çağırır:**
-  ```php
-  $invitation = new CustomerUserAccessInvitation([
-      'email_address' => $email,
-      'access_role' => $accessRole,
-  ]);
-  // CustomerUserAccessInvitationService.MutateCustomerUserAccessInvitation() ile çağır
-  ```
-
-### Notlar
-- Tüm API çağrıları güvenlik için superadmin backend tarafından yapılmalıdır.
-- Müşteri tarafı sadece talep gönderir ve durum/sonuç alır.
-- Uygulama için [Google Ads API PHP Client Library](https://github.com/googleads/google-ads-php) kullanılmalıdır.
-- API'ye göndermeden önce parametreleri eşleştirip doğrulayın.
+| Uç Nokta | Amaç | Metot | Veri Formatı |
+|----------|------|-------|--------------|
+| `/customers/{manager_customer_id}:createCustomerClient` | Hesap Oluşturma | POST | JSON (ham) |
+| `/customers/{customer_id}/customerUserAccessInvitations` | Kullanıcı Daveti/Erişim | POST | JSON (ham) |
+| `/customers/{customer_id}/accountBudgets:mutate` | Faturalandırma / Hesap Bütçesi | POST | JSON (ham) |
+| `/customers/{customer_id}/accountBudgets:mutate` | Hesap Yükleme | POST | JSON (ham) |
+| `/customers/{customer_id}/customerClients/{client_customer_id}:update` | Hesap Durumu/Askıya Alma | POST | JSON (ham) |
+| `/customers/{customer_id}/invoices:list` | Fatura Sorgulama | GET | Sorgu Parametreleri |
+| `/customers/{customer_id}/googleAds:searchStream` | Harcama Takibi/Raporlama | POST | JSON (ham) |
 
 ---
 
@@ -442,63 +318,6 @@ $invoices = $invoiceServiceClient->listInvoices($customerId, $billingSetupId, $i
 - Uygulama için [Google Ads API PHP Client Library](https://github.com/googleads/google-ads-php) kullanılmalıdır.
 - API'ye göndermeden önce parametreleri eşleştirip doğrulayın.
 - Raporlama ve müşteri paneli için API sonuçlarını yerel veritabanınızda güncelleyin.
-
----
-
-## Harcama, Hesap Durumu ve İade Yönetimi
-
-### 1. Harcama Takibi
-- **Sisteminizde:**
-  - Harcamalar, `budget_transactions` tablosunda `transaction_type = 'spend'` ile ve ilgili reklam hesabı `account_id` ile kaydedilir.
-  - `ad_accounts.total_spent` alanı, o hesaba ait tüm harcama işlemlerinin toplamını yansıtacak şekilde güncellenebilir.
-- **Google Ads API:**
-  - Gerçek harcama verisi Google Ads API'den (ör. raporlama sorguları ile) alınabilir.
-  - Dilerseniz harcamayı periyodik olarak Google Ads'ten çekip sisteminizle karşılaştırabilirsiniz.
-
-| SQL Tablo/Alan           | Google Ads API Karşılığı             | Notlar                                 |
-|-------------------------|--------------------------------------|----------------------------------------|
-| budget_transactions     | Google Ads rapor metrikleri          | Gerçek harcama API'den çekilebilir     |
-| ad_accounts.total_spent | Google Ads rapor metrikleri          | API verisiyle güncellenebilir          |
-
-### 2. Hesap Durumu (Aktif, Askıda, Devre Dışı)
-- **Sisteminizde:**
-  - Hesap durumu `ad_accounts.status` alanında tutulur (enum: 'active', 'paused', 'suspended', 'disabled').
-  - Durum değişiklikleri yönetici panelinizden yapılır ve arayüzde gösterilir.
-- **Google Ads API:**
-  - Hesap durumu API'den okunabilir (ör. `Customer.status` veya hesap politikası/servis durumu).
-  - Yerel durum alanınızı API verisine göre güncelleyebilir veya kendi iç mantığınızı kullanabilirsiniz.
-  - Bazı durum değişiklikleri (ör. askıya alma) API üzerinden kampanyaları durdurmayı veya hesap askıya alma talebini gerektirebilir.
-
-| SQL Tablo/Alan      | Google Ads API Alan/İşlem              | Notlar                                 |
-|--------------------|-----------------------------------------|----------------------------------------|
-| ad_accounts.status | Customer.status, policy summaries       | Gerekirse senkronize edin veya eşleyin |
-
-### 3. İadeler
-- **Sisteminizde:**
-  - İadeler `refunds` tablosunda, hem `ad_accounts` hem de `users` ile bağlantılı olarak tutulur.
-  - İade işlemleri ayrıca `budget_transactions` tablosunda `transaction_type = 'refund'` ile kaydedilir.
-  - Yöneticiler iadeleri işleyip onaylayabilir ve ilgili tabloları günceller.
-- **Google Ads API:**
-  - Google Ads, hesap bakiyesi için doğrudan bir iade API'si sunmaz. İadeler sisteminizde (ör. kullanılmayan bakiyenin kullanıcıya iadesi) yönetilir.
-  - Bir hesap askıya alınır veya yasaklanırsa, iade işlemini kendi sisteminizde yapıp kayıt altına alabilirsiniz.
-
-| SQL Tablo/Alan         | Google Ads API Karşılığı             | Notlar                                 |
-|-----------------------|--------------------------------------|----------------------------------------|
-| refunds               | (Doğrudan API yok)                   | Sadece sisteminizde yönetilir           |
-| budget_transactions   | (Doğrudan API yok)                   | İade işlemini transaction olarak kaydedin|
-
-### 4. Durum & İade Akış Örneği
-
-```mermaid
-flowchart TD
-    A[Hesap durumu değişir (ör. askıya alındı)] --> B[ad_accounts.status güncellenir]
-    B --> C[Eğer iade gerekiyorsa, yönetici iade başlatır]
-    C --> D[iade kaydı refunds tablosuna eklenir]
-    D --> E[iade budget_transactions'a kaydedilir]
-    E --> F[Eğer iade kullanıcıya ise users.balance güncellenir]
-    A --> G[İsteğe bağlı olarak Google Ads API ile durum senkronize edilir]
-    G --> B
-```
 
 ---
 
@@ -729,8 +548,8 @@ $stmt->execute([$spend, $status, $account_id]);
 ### Görsel: İlişki Diyagramı
 ```mermaid
 flowchart TD
-    U[users (müşteri)] -- user_id --> A[ad_accounts (Google Ads hesapları)]
-    A -- account_id --> G[Google Ads API (customer kaynağı)]
+    U("users (müşteri)") -- "user_id" --> A("ad_accounts (Google Ads hesapları)")
+    A -- "account_id" --> G("Google Ads API (customer kaynağı)")
 ```
 
 ---
@@ -866,3 +685,310 @@ flowchart TD
 ```
 
 --- 
+
+---
+
+## Genel Bakış
+Bu doküman, Google Ads API özelliklerinin sisteme nasıl entegre edildiğini, `customer` (reklamveren) ve `superadmin` (yönetici) taraflarının sorumluluklarını ayırarak açıklar. Ayrıca, her ana işlem için veri akışını ve iletilen parametreleri detaylandırır; özellikle kredi limiti (fatura) ödeme iş akışına odaklanır.
+
+---
+
+## Özellik Eşlemesi: Müşteri vs. Superadmin
+
+| Özellik                  | API Servisi/Kaynağı                  | Müşteri Tarafı (customer/) | Superadmin Tarafı (superadmin/) | Aktarılan Parametreler/Veriler         |
+|-------------------------|---------------------------------------|:-------------------------:|:-------------------------------:|----------------------------------------|
+| Hesap Oluşturma         | CustomerService                       | Yeni hesap talep et        | API ile hesap oluştur           | Müşteri adı, e-posta, işletme bilgisi  |
+| Erişim Daveti           | CustomerUserAccessInvitationService   | Davetleri talep/görüntüle  | Davet gönder/iptal et           | Kullanıcı e-postası, erişim seviyesi   |
+| Reklamveren Doğrulama   | Customer/CustomerClient               | Durumu görüntüle           | Doğrulama kontrol/tetikle        | Hesap ID                               |
+| Faturalandırma Kurulumu | BillingSetupService                   | Fatura bilgisini görüntüle | Ödeme profilini bağla (fatura)   | Hesap ID, ödeme profili                |
+| Bakiye Yükleme (Topup)  | AccountBudgetService                  | Yükleme talep/görüntüle    | API ile bütçe ayarla/düzenle     | Hesap ID, bütçe tutarı                 |
+| Fatura                  | InvoiceService                        | Faturaları görüntüle/indir | API ile fatura getir             | Hesap ID, fatura dönemi                |
+
+---
+
+## Entegrasyon Noktası Örnekleri
+
+- **Müşteri Paneli:**
+  - Bakiyeler, bütçeler, faturalar gösterilir (veriler backend veya superadmin üzerinden API ile çekilir).
+  - Yeni hesap, bakiye yükleme ve kullanıcı erişim talepleri yapılabilir.
+- **Superadmin Paneli:**
+  - Tüm Google Ads API çağrılarını yönetir (hesap oluşturma, faturalandırma kurulumu, bütçe yönetimi, fatura çekme, kullanıcı daveti, doğrulama kontrolü).
+  - Müşteri taleplerini onaylar ve işler.
+
+---
+
+## Güvenlik & Yetkilendirme
+
+- Sadece superadmin, Google Ads API kimlik bilgilerine sahip olur ve hassas API işlemlerini gerçekleştirir.
+- Müşteri işlemleri sadece taleptir; superadmin onaylar ve API üzerinden uygular.
+- Tüm hassas veriler (API anahtarları, ödeme profilleri) superadmin tarafından sunucu tarafında yönetilir.
+
+---
+
+## İçindekiler
+- [Genel Bakış](#genel-bakış)
+- [İlişki Diyagramı](#görsel-ilişki-diyagramı)
+- [Entegrasyon Akışı](#entegrasyon-akışı)
+- [API Uç Nokta & Parametre Referansı](#google-ads-api-uç-nokta--parametre-referansı-v20)
+  - [Hesap Oluşturma](#1-hesap-oluşturma-customerservice)
+  - [Kullanıcı Daveti/Erişim](#2-kullanıcı-daveterişim-customeruseraccessinvitations)
+  - [Faturalandırma Kurulumu](#3-faturalandırma-kurulumu-paymentsaccountbudgets)
+  - [Hesap Bütçesi/Yükleme](#4-hesap-bütçesiyükleme-accountbudgets)
+  - [Hesap Durumu/Askıya Alma](#5-hesap-durumu-askıya-alma)
+  - [Fatura Sorgulama](#6-fatura-sorgulama-invoices)
+  - [Harcama Takibi/Raporlama](#7-harcama-takibiraporlama)
+- [Harcama Takibi: En Basit Rehber](#harcama-takibi-en-basit-rehber)
+- [Kontrol Listesi](#kontrol-listesi)
+
+---
+
+## Google Ads API Uç Nokta Özeti
+
+| Uç Nokta | Amaç | Metot | Veri Formatı |
+|----------|------|-------|--------------|
+| `/customers/{manager_customer_id}:createCustomerClient` | Hesap Oluşturma | POST | JSON (ham) |
+| `/customers/{customer_id}/customerUserAccessInvitations` | Kullanıcı Daveti/Erişim | POST | JSON (ham) |
+| `/customers/{customer_id}/accountBudgets:mutate` | Faturalandırma / Hesap Bütçesi | POST | JSON (ham) |
+| `/customers/{customer_id}/accountBudgets:mutate` | Hesap Yükleme | POST | JSON (ham) |
+| `/customers/{customer_id}/customerClients/{client_customer_id}:update` | Hesap Durumu/Askıya Alma | POST | JSON (ham) |
+| `/customers/{customer_id}/invoices:list` | Fatura Sorgulama | GET | Sorgu Parametreleri |
+| `/customers/{customer_id}/googleAds:searchStream` | Harcama Takibi/Raporlama | POST | JSON (ham) |
+
+---
+
+# Google Ads API Entegrasyonu: Detaylı Uygulama Rehberi
+
+Bu bölüm, her ana Google Ads API'sinin mevcut PHP sisteminize entegrasyonu için kapsamlı, adım adım bir rehber sunar. Her API'nin ne yaptığı, ne zaman/nerede çağrılacağı, iş akışınıza nasıl uyduğu, parametre eşlemesi ve superadmin backend için PHP kod örnekleri içerir. Müşteri veya geliştirici ile paylaşmaya uygundur.
+
+---
+
+## 1. Hesap Oluşturma API'si
+**Döküman:** https://developers.google.com/google-ads/api/docs/account-management/create-account?hl=tr
+
+**Amaç:**
+- Yöneticinizin (MCC) altında yeni bir Google Ads hesabı (çocuk hesap) oluşturmak.
+
+**Ne Zaman/Nerede Çağrılır:**
+- Müşteri panelinden yeni hesap talebi gönderildikten sonra.
+- Superadmin backend talebi alır ve API'yi çağırır.
+
+**Parametre Eşlemesi:**
+| Müşteri Girişi / SQL Param | Google Ads API Param |
+|---------------------------|---------------------|
+| account_name              | descriptive_name    |
+| currency                  | currency_code       |
+| timezone                  | time_zone           |
+
+**Entegrasyon Akışı:**
+1. Müşteri hesap oluşturma formunu gönderir.
+2. PHP backend, talebi `account_requests` tablosuna kaydeder.
+3. Superadmin talebi inceler ve onaylar.
+4. Superadmin backend, Google Ads API ile hesabı oluşturur.
+5. Sonuç/durum kaydedilir ve müşteriye gösterilir.
+
+**PHP Örneği (Superadmin):**
+```php
+// Google Ads API PHP Client Library kullanılır
+$customer = new Customer([
+    'descriptive_name' => $accountName,
+    'currency_code' => $currency,
+    'time_zone' => $timezone,
+]);
+$customerServiceClient->createCustomerClient($managerCustomerId, $customer);
+```
+
+---
+
+## 2. Erişim Daveti API'si
+**Döküman:** https://developers.google.com/google-ads/api/docs/account-management/managing-invitations?hl=tr
+
+**Amaç:**
+- Bir kullanıcıyı Google Ads hesabına davet etmek (ör. müşteri veya ekibi).
+
+**Ne Zaman/Nerede Çağrılır:**
+- Müşteri, hesabına kullanıcı eklemek istediğinde.
+- Superadmin backend talebi işler ve API'yi çağırır.
+
+**Parametre Eşlemesi:**
+| Müşteri Girişi / SQL Param | Google Ads API Param |
+|---------------------------|---------------------|
+| email                     | email_address       |
+| access_level              | access_role         |
+| account_id                | customer_id         |
+
+**Entegrasyon Akışı:**
+1. Müşteri davet talebini gönderir (e-posta, erişim seviyesi).
+2. PHP backend talebi kaydeder.
+3. Superadmin inceler ve onaylar.
+4. Superadmin backend, Google Ads API ile daveti gönderir.
+5. Sonuç/durum kaydedilir ve müşteriye gösterilir.
+
+**PHP Örneği (Superadmin):**
+```php
+$invitation = new CustomerUserAccessInvitation([
+    'email_address' => $email,
+    'access_role' => $accessRole,
+]);
+$invitationServiceClient->createCustomerUserAccessInvitation($customerId, $invitation);
+```
+
+---
+
+## 3. Reklamveren Doğrulama API'si
+**Döküman:** https://developers.google.com/google-ads/api/docs/account-management/advertiser-identity-verification?hl=tr
+
+**Amaç:**
+- Bir Google Ads hesabı için reklamveren kimlik doğrulama durumunu kontrol etmek veya yönetmek.
+
+**Ne Zaman/Nerede Çağrılır:**
+- Müşteri veya yönetici doğrulama durumunu kontrol etmek istediğinde.
+- Superadmin backend API'yi sorgular.
+
+**Parametre Eşlemesi:**
+| Müşteri Girişi / SQL Param | Google Ads API Param |
+|---------------------------|---------------------|
+| account_id                | customer_id         |
+
+**Entegrasyon Akışı:**
+1. Müşteri doğrulama durumu talep eder.
+2. PHP backend, Google Ads API'den durumu sorgular.
+3. Sonuç/durum müşteriye gösterilir.
+
+**PHP Örneği (Superadmin):**
+```php
+// Müşteri kaynağını getir
+$customer = $customerServiceClient->getCustomer($customerId);
+$status = $customer->getAdvertiserVerificationStatus();
+```
+
+---
+
+## 4. Faturalandırma Kurulumu API'si (Fatura ile Ödeme)
+**Döküman:** https://developers.google.com/google-ads/api/docs/billing/billing-setups?hl=tr
+
+**Amaç:**
+- Bir Google Ads hesabını ödeme profiline (fatura ile ödeme) bağlamak.
+
+**Ne Zaman/Nerede Çağrılır:**
+- Hesap oluşturulduktan sonra, reklam yayınlamadan önce.
+- Superadmin backend, hesabı fatura ödeme profiline bağlar.
+
+**Parametre Eşlemesi:**
+| Müşteri Girişi / SQL Param | Google Ads API Param |
+|---------------------------|---------------------|
+| account_id                | customer_id         |
+| payment_profile           | payments_account    |
+
+**Entegrasyon Akışı:**
+1. Müşteri hesabı oluşturulur.
+2. Superadmin backend, hesabı API ile fatura ödeme profiline bağlar.
+3. Sonuç/durum kaydedilir ve müşteriye gösterilir.
+
+**PHP Örneği (Superadmin):**
+```php
+$billingSetup = new BillingSetup([
+    'payments_account' => $paymentsAccountId,
+]);
+$billingSetupServiceClient->mutateBillingSetup($customerId, $billingSetup);
+```
+
+---
+
+## 5. Bakiye Yükleme (Hesap Bütçesi) API'si
+**Döküman:** https://developers.google.com/google-ads/api/docs/billing/account-budgets?hl=tr
+
+**Amaç:**
+- Bir hesap için bütçe belirlemek veya artırmak (fatura/kredi limiti hesapları için gereklidir).
+
+**Ne Zaman/Nerede Çağrılır:**
+- Müşteri bakiye yükleme veya bütçe artırımı talep ettiğinde.
+- Superadmin backend işler ve API'yi çağırır.
+
+**Parametre Eşlemesi:**
+| Müşteri Girişi / SQL Param | Google Ads API Param |
+|---------------------------|---------------------|
+| account_id                | customer_id         |
+| amount                    | amount_micros       |
+
+**Entegrasyon Akışı:**
+1. Müşteri yükleme talebini gönderir (hesap, tutar).
+2. PHP backend talebi kaydeder ve bakiyeden düşer.
+3. Superadmin inceler ve onaylar.
+4. Superadmin backend, Google Ads API ile bütçeyi artırır.
+5. Sonuç/durum kaydedilir ve müşteriye gösterilir.
+
+**PHP Örneği (Superadmin):**
+```php
+$proposal = new AccountBudgetProposal([
+    'customer_id' => $customerId,
+    'amount_micros' => $amount * 1000000, // 1 TL = 1.000.000 mikros
+    // ... diğer parametreler
+]);
+$accountBudgetServiceClient->mutateAccountBudgetProposal($customerId, $proposal);
+```
+
+---
+
+## 6. Fatura API'si
+**Döküman:** https://developers.google.com/google-ads/api/docs/billing/invoice?hl=tr
+
+**Amaç:**
+- Aylık faturalandırma (kredi limiti) olan hesaplar için faturaları almak.
+
+**Ne Zaman/Nerede Çağrılır:**
+- Müşteri faturasını görüntülemek/indirmek istediğinde.
+- Superadmin backend API'den faturayı çeker.
+
+**Parametre Eşlemesi:**
+| Müşteri Girişi / SQL Param | Google Ads API Param |
+|---------------------------|---------------------|
+| account_id                | customer_id         |
+| tarih (yıl/ay)            | issue_year, issue_month |
+
+**Entegrasyon Akışı:**
+1. Müşteri fatura talep eder (hesap, tarih).
+2. PHP backend, talebi superadmin'e iletir.
+3. Superadmin backend, Google Ads API ile faturayı çeker.
+4. Fatura müşteriye gösterilir/indirilir.
+
+**PHP Örneği (Superadmin):**
+```php
+$invoices = $invoiceServiceClient->listInvoices($customerId, $billingSetupId, $issueYear, $issueMonth);
+// $invoices döngüsü ile göster veya indir
+```
+
+---
+
+## 7. Harcama Takibi (GoogleAdsService ile Raporlama)
+**Uç Nokta:**
+POST https://googleads.googleapis.com/v20/customers/{customer_id}/googleAds:search
+
+**HTTP Metodu:** POST
+
+**İstek Gövdesi:**
+```json
+{
+  "query": "SELECT metrics.cost_micros, metrics.clicks, metrics.impressions FROM customer WHERE segments.date DURING LAST_30_DAYS"
+}
+```
+
+| Parametre | Zorunlu | Tip    | Açıklama/Örnek               |
+|-----------|---------|--------|------------------------------|
+| query     | Evet    | string | GAQL sorgusu                 |
+
+**Örnek:**
+```json
+{
+  "query": "SELECT metrics.cost_micros, metrics.clicks, metrics.impressions FROM customer WHERE segments.date DURING LAST_30_DAYS"
+}
+```
+
+---
+
+**Tüm isteklerde gereklidir:**
+- `Authorization: Bearer {OAUTH2_ACCESS_TOKEN}`
+- `developer-token: {DEVELOPER_TOKEN}`
+- `login-customer-id: {manager_customer_id}` (yönetici işlemleri için)
+- `Content-Type: application/json` (POST için)
+
+En güncel detaylar ve tüm alanlar için [Google Ads API REST Referansı](https://developers.google.com/google-ads/api/rest/reference/rest?hl=tr) sayfasına bakın. 
