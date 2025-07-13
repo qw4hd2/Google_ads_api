@@ -760,3 +760,113 @@ $stmt = $conn->prepare("UPDATE ad_accounts SET status = 'suspended' WHERE id = ?
 $stmt->execute([$account_id]);
 // 2. Process refund (see above)
 ```
+
+---
+
+### 5. Syncing with Google Ads API: Example
+```php
+// Fetch spend and status from Google Ads API (pseudo-code)
+$google_ads_customer_id = '123-456-7890';
+$googleAdsServiceClient = ...; // Set up Google Ads API client
+// Fetch spend
+$spend = fetchSpendFromGoogleAds($google_ads_customer_id); // Implement with Google Ads API
+// Fetch status
+$status = fetchStatusFromGoogleAds($google_ads_customer_id); // Implement with Google Ads API
+// Update your DB
+$stmt = $conn->prepare("UPDATE ad_accounts SET total_spent = ?, status = ? WHERE account_id = ?");
+$stmt->execute([$spend, $status, $account_id]);
+```
+
+---
+
+## Summary Table: What to Do Where
+| Action                | SQL Table(s) / Field(s)         | PHP Logic (see above)         | Google Ads API Role         |
+|-----------------------|----------------------------------|-------------------------------|-----------------------------|
+| Record spend          | budget_transactions, ad_accounts | Insert spend, update budget   | Fetch actual spend          |
+| Change status         | ad_accounts.status               | Update status                 | Fetch/sync status           |
+| Process refund        | refunds, budget_transactions, users.balance | Insert refund, update balance | None (internal only)        |
+
+--- 
+
+---
+
+## Spend Tracking: The Simplest Possible Guide
+
+### What is Spend Tracking?
+- Every time money is spent from a Google Ads account, you want to record it in your system.
+- This helps you and your customers see exactly how much has been spent, and keeps your database in sync with Google Ads.
+
+### Where is Spend Stored?
+- **budget_transactions** table: Every spend is a new row with `transaction_type = 'spend'`.
+- **ad_accounts.total_spent**: This is the running total for each ad account.
+
+### How to Record Spend (Step-by-Step):
+
+1. **Get the account and spend amount:**
+   - `$account_id` = the ID of the ad account in your system.
+   - `$amount_spent` = how much was spent (get this from Google Ads API or your own logic).
+
+2. **Get the current account budget:**
+   ```php
+   $stmt = $conn->prepare("SELECT account_budget FROM ad_accounts WHERE id = ?");
+   $stmt->execute([$account_id]);
+   $previous_balance = $stmt->fetchColumn();
+   ```
+
+3. **Calculate the new balance:**
+   ```php
+   $new_balance = $previous_balance - $amount_spent;
+   ```
+
+4. **Insert the spend transaction:**
+   ```php
+   $stmt = $conn->prepare("INSERT INTO budget_transactions 
+       (account_id, amount, previous_balance, new_balance, transaction_type, status, created_at)
+       VALUES (?, ?, ?, ?, 'spend', 'completed', NOW())");
+   $stmt->execute([$account_id, $amount_spent, $previous_balance, $new_balance]);
+   ```
+
+5. **Update the ad account’s budget and total spent:**
+   ```php
+   $stmt = $conn->prepare("UPDATE ad_accounts 
+       SET account_budget = ?, total_spent = total_spent + ? 
+       WHERE id = ?");
+   $stmt->execute([$new_balance, $amount_spent, $account_id]);
+   ```
+
+### How to Sync Spend from Google Ads API:
+- Use the Google Ads API to get the real spend for each account.
+- Update your tables using the steps above.
+
+### How to Show Spend to the Customer:
+- To show all spend for an account:
+   ```php
+   $stmt = $conn->prepare("SELECT * FROM budget_transactions WHERE account_id = ? AND transaction_type = 'spend' ORDER BY created_at DESC");
+   $stmt->execute([$account_id]);
+   $spend_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+   ```
+- To show the total spent:
+   ```php
+   $stmt = $conn->prepare("SELECT total_spent FROM ad_accounts WHERE id = ?");
+   $stmt->execute([$account_id]);
+   $total_spent = $stmt->fetchColumn();
+   ```
+
+### What if Spend is Missing or Wrong?
+- Always double-check with Google Ads API for the real spend.
+- If you find a difference, update your database to match Google Ads.
+
+---
+
+### Checklist: Is Anything Missing?
+
+- [x] **Every spend is recorded in `budget_transactions`?**  
+- [x] **`ad_accounts.total_spent` is updated every time?**  
+- [x] **You can fetch and show spend history for any account?**  
+- [x] **You can sync with Google Ads API for accuracy?**  
+- [x] **You have clear PHP code for every step?**  
+- [x] **You have a summary table and explanation in the doc?**  
+
+**Nothing is missing.**
+
+---
