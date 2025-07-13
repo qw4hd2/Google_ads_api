@@ -1,80 +1,33 @@
 # Google Ads API Integration Guide
 
+## Table of Contents
+- [Overview](#overview)
+- [Relationship Diagram](#visual-relationship-diagram)
+- [Integration Flow](#integration-flow)
+- [API Endpoint & Parameter Reference](#google-ads-api-endpoint--parameter-reference-v20)
+  - [Account Creation](#1-account-creation-customerservice)
+  - [User Invite/Access](#2-user-inviteaccess-customeruseraccessinvitations)
+  - [Billing Setup](#3-billing-setup-paymentsaccountbudgets)
+  - [Account Budget/Topup](#4-account-budgettopup-accountbudgets)
+  - [Account Status/Suspend](#5-account-status-suspend)
+  - [Invoice Retrieval](#6-invoice-retrieval-invoices)
+  - [Spend Tracking/Reporting](#7-spend-trackingreporting)
+- [Spend Tracking: The Simplest Possible Guide](#spend-tracking-the-simplest-possible-guide)
+- [Checklist](#checklist)
+
 ---
 
-## Getting Started: Connecting to Google Ads API & Sandbox Setup
+## Google Ads API Endpoint Summary
 
-### 0. Install the Google Ads API PHP Client Library
-- Make sure you have [Composer](https://getcomposer.org/) installed.
-- In your project directory, run:
-  ```bash
-  composer require googleads/google-ads-php
-  ```
-- This will install the library and all dependencies in your `vendor/` directory.
-- In your PHP code, include the autoloader:
-  ```php
-  require 'vendor/autoload.php';
-  ```
-
-### 1. What You Need
-- **Google Cloud Project**: Create one at https://console.cloud.google.com/
-- **Google Ads Manager (MCC) Account**: Needed to manage sub-accounts.
-- **OAuth2 Credentials**: Create OAuth2 client ID/secret in Google Cloud Console.
-- **Developer Token**: Request from Google Ads API Center (in your MCC account).
-- **Refresh Token**: Needed for API authentication (see below for how to get it).
-- **Google Ads API PHP Client Library**: [GitHub](https://github.com/googleads/google-ads-php)
-
-### 2. How to Connect (PHP Example)
-```php
-require 'vendor/autoload.php';
-use Google\Ads\GoogleAds\Lib\V14\GoogleAdsClientBuilder;
-
-$client = (new GoogleAdsClientBuilder())
-    ->fromFile('google_ads_php.ini') // Or use ->withXyz() methods
-    ->build();
-```
-
-**Example `google_ads_php.ini`:**
-```
-developerToken = "INSERT_YOUR_DEVELOPER_TOKEN"
-clientId = "INSERT_YOUR_CLIENT_ID"
-clientSecret = "INSERT_YOUR_CLIENT_SECRET"
-refreshToken = "INSERT_YOUR_REFRESH_TOKEN"
-loginCustomerId = "INSERT_YOUR_MCC_ID" # Optional, for manager accounts
-```
-
-### 3. How to Get a Refresh Token (for Testing/Sandbox)
-1. **Create OAuth2 credentials** in Google Cloud Console (type: Desktop app is easiest for testing).
-2. **Use the Google Ads PHP client’s `GenerateRefreshToken.php` script** (found in `/examples/Authentication/`).
-   - Run: `php examples/Authentication/GenerateRefreshToken.php`
-   - Follow the link, log in with your test Google account (not production!), and paste the code back.
-   - You’ll get a refresh token for that user.
-3. **Use this refresh token in your test config.**
-
-### 4. How to Set Up a Sandbox/Test Environment
-- **Google Ads API does not have a true sandbox,** but you can use a separate test MCC and test sub-accounts.
-- **Best practice:**
-  - Create a new Google account for testing.
-  - Create a new MCC (manager) account with this test user.
-  - Request a developer token for this test MCC (mark as test/non-production if possible).
-  - Use this test MCC and its sub-accounts for all development/testing.
-  - Use a separate OAuth2 client and refresh token for test vs. production.
-- **Never use your production MCC or real customer accounts for testing!**
-
-### 5. Switching Between Test and Production
-- Use different `google_ads_php.ini` files or environment variables for test and prod.
-- Example:
-  - `google_ads_php_test.ini` (test credentials, test refresh token, test MCC)
-  - `google_ads_php_prod.ini` (prod credentials, prod refresh token, prod MCC)
-- In your code, load the correct config based on environment.
-
-### 6. Quick Checklist
-- [x] Google Cloud Project created
-- [x] OAuth2 credentials (client ID/secret)
-- [x] Developer token (test and prod)
-- [x] Refresh token for test user (see above)
-- [x] Separate test and prod config files
-- [x] Never use real customer data for testing
+| Endpoint | Purpose | Method | Data Format |
+|----------|---------|--------|-------------|
+| `/customers/{manager_customer_id}:createCustomerClient` | Account Creation | POST | JSON (raw) |
+| `/customers/{customer_id}/customerUserAccessInvitations` | User Invite/Access | POST | JSON (raw) |
+| `/customers/{customer_id}/accountBudgets:mutate` | Billing Setup / Account Budget | POST | JSON (raw) |
+| `/customers/{customer_id}/accountBudgets:mutate` | Account Topup | POST | JSON (raw) |
+| `/customers/{customer_id}/customerClients/{client_customer_id}:update` | Account Status/Suspend | POST | JSON (raw) |
+| `/customers/{customer_id}/invoices:list` | Invoice Retrieval | GET | Query Params |
+| `/customers/{customer_id}/googleAds:searchStream` | Spend Tracking/Reporting | POST | JSON (raw) |
 
 ---
 
@@ -870,3 +823,281 @@ $stmt->execute([$spend, $status, $account_id]);
 **Nothing is missing.**
 
 ---
+
+---
+
+# Google Ads API: Endpoint & Parameter Reference (v20)
+
+This section lists all major Google Ads API endpoints used in this system, with every parameter (required/optional), their format, and HTTP method. All requests use REST/JSON. See [Google Ads API Reference](https://developers.google.com/google-ads/api/rest/reference/rest) for details.
+
+## 1. Account Creation (CustomerService)
+**Endpoint:**
+POST https://googleads.googleapis.com/v20/customers/{manager_customer_id}:createCustomerClient
+
+**HTTP Method:** POST
+
+**Request Body:**
+```json
+{
+  "customerClient": {
+    "descriptiveName": "string",         // Required
+    "currencyCode": "string",            // Required (e.g. "USD", "TRY")
+    "timeZone": "string",                // Required (e.g. "Europe/Istanbul")
+    "trackingUrlTemplate": "string",     // Optional
+    "finalUrlSuffix": "string",          // Optional
+    "hasPartnersBadge": boolean           // Optional
+  },
+  "validateOnly": boolean                 // Optional
+}
+```
+
+| Parameter             | Required | Type    | Example/Notes                |
+|-----------------------|----------|---------|------------------------------|
+| descriptiveName       | Yes      | string  | "Acme Corp"                 |
+| currencyCode          | Yes      | string  | "USD", "TRY"                |
+| timeZone              | Yes      | string  | "Europe/Istanbul"           |
+| trackingUrlTemplate   | No       | string  |                              |
+| finalUrlSuffix        | No       | string  |                              |
+| hasPartnersBadge      | No       | bool    |                              |
+| validateOnly          | No       | bool    | true/false (dry run)         |
+
+**Example:**
+```json
+{
+  "customerClient": {
+    "descriptiveName": "Acme Corp",
+    "currencyCode": "TRY",
+    "timeZone": "Europe/Istanbul"
+  }
+}
+```
+
+---
+
+## 2. User Invite (CustomerUserAccessInvitationService)
+**Endpoint:**
+POST https://googleads.googleapis.com/v20/customers/{customer_id}/customerUserAccessInvitations:mutate
+
+**HTTP Method:** POST
+
+**Request Body:**
+```json
+{
+  "operations": [
+    {
+      "create": {
+        "emailAddress": "string",         // Required
+        "accessRole": "string"            // Required (e.g. ADMIN, STANDARD, READ_ONLY)
+      }
+    }
+  ],
+  "partialFailure": boolean,              // Optional
+  "validateOnly": boolean                 // Optional
+}
+```
+
+| Parameter      | Required | Type    | Example/Notes                |
+|---------------|----------|---------|------------------------------|
+| emailAddress  | Yes      | string  | "user@gmail.com"             |
+| accessRole    | Yes      | string  | "ADMIN", "STANDARD"          |
+| partialFailure| No       | bool    |                              |
+| validateOnly  | No       | bool    |                              |
+
+**Example:**
+```json
+{
+  "operations": [
+    {
+      "create": {
+        "emailAddress": "user@gmail.com",
+        "accessRole": "ADMIN"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## 3. Billing Setup (BillingSetupService)
+**Endpoint:**
+POST https://googleads.googleapis.com/v20/customers/{customer_id}/billingSetups:mutate
+
+**HTTP Method:** POST
+
+**Request Body:**
+```json
+{
+  "operations": [
+    {
+      "create": {
+        "paymentsAccount": "string"        // Required (Payment Profile ID)
+      }
+    }
+  ]
+}
+```
+
+| Parameter        | Required | Type    | Example/Notes                |
+|------------------|----------|---------|------------------------------|
+| paymentsAccount  | Yes      | string  | "1234-5678-9012-3456"        |
+
+**Example:**
+```json
+{
+  "operations": [
+    {
+      "create": {
+        "paymentsAccount": "1234-5678-9012-3456"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## 4. Account Budget/Topup (AccountBudgetProposalService)
+**Endpoint:**
+POST https://googleads.googleapis.com/v20/customers/{customer_id}/accountBudgetProposals:mutate
+
+**HTTP Method:** POST
+
+**Request Body:**
+```json
+{
+  "operations": [
+    {
+      "create": {
+        "accountBudget": "string",         // Required (resource name)
+        "proposalType": "string",         // Required (CREATE, UPDATE, END, REMOVE)
+        "amountMicros": "string",         // Required for CREATE/UPDATE (e.g. "10000000" for 10 TRY)
+        "startTimeType": "string",        // Optional (NOW, FOREVER, SPECIFIED_TIME)
+        "endTimeType": "string"           // Optional (FOREVER, SPECIFIED_TIME)
+      }
+    }
+  ]
+}
+```
+
+| Parameter      | Required | Type    | Example/Notes                |
+|---------------|----------|---------|------------------------------|
+| accountBudget | Yes      | string  | "customers/123/accountBudgets/456" |
+| proposalType  | Yes      | string  | "CREATE", "UPDATE"           |
+| amountMicros  | Yes      | string  | "10000000" (10 TRY)           |
+| startTimeType | No       | string  | "NOW", "FOREVER"              |
+| endTimeType   | No       | string  | "FOREVER"                     |
+
+**Example:**
+```json
+{
+  "operations": [
+    {
+      "create": {
+        "accountBudget": "customers/123/accountBudgets/456",
+        "proposalType": "UPDATE",
+        "amountMicros": "10000000"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## 5. Account Status (Suspend/Enable/Update)
+**Endpoint:**
+POST https://googleads.googleapis.com/v20/customers/{customer_id}:mutate
+
+**HTTP Method:** POST
+
+**Request Body:**
+```json
+{
+  "operations": [
+    {
+      "update": {
+        "resourceName": "customers/{customer_id}", // Required
+        "status": "string"                        // Required (ENABLED, PAUSED, SUSPENDED)
+      },
+      "updateMask": "status"
+    }
+  ]
+}
+```
+
+| Parameter      | Required | Type    | Example/Notes                |
+|---------------|----------|---------|------------------------------|
+| resourceName  | Yes      | string  | "customers/1234567890"       |
+| status        | Yes      | string  | "ENABLED", "SUSPENDED"       |
+| updateMask    | Yes      | string  | "status"                     |
+
+**Example:**
+```json
+{
+  "operations": [
+    {
+      "update": {
+        "resourceName": "customers/1234567890",
+        "status": "SUSPENDED"
+      },
+      "updateMask": "status"
+    }
+  ]
+}
+```
+
+---
+
+## 6. Invoice (InvoiceService)
+**Endpoint:**
+GET https://googleads.googleapis.com/v20/customers/{customer_id}/invoices:list
+
+**HTTP Method:** GET
+
+**Query Parameters:**
+- customer_id (required)
+- billing_setup (required)
+- issue_year (required)
+- issue_month (required, e.g. "2024-07")
+
+**Example:**
+```
+GET https://googleads.googleapis.com/v20/customers/1234567890/invoices:list?billing_setup=customers/1234567890/billingSetups/111&issue_year=2024&issue_month=07
+```
+
+---
+
+## 7. Spend Tracking (Reporting via GoogleAdsService)
+**Endpoint:**
+POST https://googleads.googleapis.com/v20/customers/{customer_id}/googleAds:search
+
+**HTTP Method:** POST
+
+**Request Body:**
+```json
+{
+  "query": "SELECT metrics.cost_micros, metrics.clicks, metrics.impressions FROM customer WHERE segments.date DURING LAST_30_DAYS"
+}
+```
+
+| Parameter | Required | Type   | Example/Notes                |
+|-----------|----------|--------|------------------------------|
+| query     | Yes      | string | GAQL query                   |
+
+**Example:**
+```json
+{
+  "query": "SELECT metrics.cost_micros, metrics.clicks, metrics.impressions FROM customer WHERE segments.date DURING LAST_30_DAYS"
+}
+```
+
+---
+
+**All requests require:**
+- `Authorization: Bearer {OAUTH2_ACCESS_TOKEN}`
+- `developer-token: {DEVELOPER_TOKEN}`
+- `login-customer-id: {manager_customer_id}` (for manager actions)
+- `Content-Type: application/json` (for POST)
+
+See [Google Ads API REST Reference](https://developers.google.com/google-ads/api/rest/reference/rest) for the latest details and all possible fields.
