@@ -99,8 +99,8 @@ This document describes how Google Ads API features are integrated into the syst
 ### Visual: Relationship Diagram
 ```mermaid
 flowchart TD
-    U[users (customer)] -- user_id --> A[ad_accounts (Google Ads accounts)]
-    A -- account_id --> G[Google Ads API (customer resource)]
+    U("users (customer)") -- "user_id" --> A("ad_accounts (Google Ads accounts)")
+    A -- "account_id" --> G("Google Ads API (customer resource)")
 ```
 
 ---
