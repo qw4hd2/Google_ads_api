@@ -1,5 +1,85 @@
 # Google Ads API Integration Guide
 
+---
+
+## Getting Started: Connecting to Google Ads API & Sandbox Setup
+
+### 0. Install the Google Ads API PHP Client Library
+- Make sure you have [Composer](https://getcomposer.org/) installed.
+- In your project directory, run:
+  ```bash
+  composer require googleads/google-ads-php
+  ```
+- This will install the library and all dependencies in your `vendor/` directory.
+- In your PHP code, include the autoloader:
+  ```php
+  require 'vendor/autoload.php';
+  ```
+
+### 1. What You Need
+- **Google Cloud Project**: Create one at https://console.cloud.google.com/
+- **Google Ads Manager (MCC) Account**: Needed to manage sub-accounts.
+- **OAuth2 Credentials**: Create OAuth2 client ID/secret in Google Cloud Console.
+- **Developer Token**: Request from Google Ads API Center (in your MCC account).
+- **Refresh Token**: Needed for API authentication (see below for how to get it).
+- **Google Ads API PHP Client Library**: [GitHub](https://github.com/googleads/google-ads-php)
+
+### 2. How to Connect (PHP Example)
+```php
+require 'vendor/autoload.php';
+use Google\Ads\GoogleAds\Lib\V14\GoogleAdsClientBuilder;
+
+$client = (new GoogleAdsClientBuilder())
+    ->fromFile('google_ads_php.ini') // Or use ->withXyz() methods
+    ->build();
+```
+
+**Example `google_ads_php.ini`:**
+```
+developerToken = "INSERT_YOUR_DEVELOPER_TOKEN"
+clientId = "INSERT_YOUR_CLIENT_ID"
+clientSecret = "INSERT_YOUR_CLIENT_SECRET"
+refreshToken = "INSERT_YOUR_REFRESH_TOKEN"
+loginCustomerId = "INSERT_YOUR_MCC_ID" # Optional, for manager accounts
+```
+
+### 3. How to Get a Refresh Token (for Testing/Sandbox)
+1. **Create OAuth2 credentials** in Google Cloud Console (type: Desktop app is easiest for testing).
+2. **Use the Google Ads PHP client’s `GenerateRefreshToken.php` script** (found in `/examples/Authentication/`).
+   - Run: `php examples/Authentication/GenerateRefreshToken.php`
+   - Follow the link, log in with your test Google account (not production!), and paste the code back.
+   - You’ll get a refresh token for that user.
+3. **Use this refresh token in your test config.**
+
+### 4. How to Set Up a Sandbox/Test Environment
+- **Google Ads API does not have a true sandbox,** but you can use a separate test MCC and test sub-accounts.
+- **Best practice:**
+  - Create a new Google account for testing.
+  - Create a new MCC (manager) account with this test user.
+  - Request a developer token for this test MCC (mark as test/non-production if possible).
+  - Use this test MCC and its sub-accounts for all development/testing.
+  - Use a separate OAuth2 client and refresh token for test vs. production.
+- **Never use your production MCC or real customer accounts for testing!**
+
+### 5. Switching Between Test and Production
+- Use different `google_ads_php.ini` files or environment variables for test and prod.
+- Example:
+  - `google_ads_php_test.ini` (test credentials, test refresh token, test MCC)
+  - `google_ads_php_prod.ini` (prod credentials, prod refresh token, prod MCC)
+- In your code, load the correct config based on environment.
+
+### 6. Quick Checklist
+- [x] Google Cloud Project created
+- [x] OAuth2 credentials (client ID/secret)
+- [x] Developer token (test and prod)
+- [x] Refresh token for test user (see above)
+- [x] Separate test and prod config files
+- [x] Never use real customer data for testing
+
+---
+
+# Google Ads API Integration Guide
+
 ## Table of Contents
 - [Overview](#overview)
 - [Relationship Diagram](#visual-relationship-diagram)
