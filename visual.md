@@ -142,7 +142,6 @@ graph TD
 
 ## Turkish Version:
 
-```markdown
 # Google Ads API Entegrasyonu - Sistem Mimarisi
 
 ## Sistem Yapısına Genel Bakış
@@ -153,33 +152,32 @@ graph TD
 graph TD
     subgraph "Google Ads Altyapısı"
         MCC["MCC (Yönetici Hesap)<br/>ID: 1234567890<br/>Rol: Sadece Konteyner"]
-        C1["Müşteri Hesabı 1<br/>ID: 1111111111"]
-        C2["Müşteri Hesabı 2<br/>ID: 2222222222"]
-        C3["Müşteri Hesabı 3<br/>ID: 3333333333"]
+        C1["Müşteri Hesabı 1<br/>ID: 1111111111"]
+        C2["Müşteri Hesabı 2<br/>ID: 2222222222"]
+        C3["Müşteri Hesabı 3<br/>ID: 3333333333"]
         
         MCC --> C1
         MCC --> C2
         MCC --> C3
     end
-    
+
     subgraph "Platform Veritabanınız"
-        U1["Kullanıcı: Ahmet<br/>user_id: 31<br/>bakiye: ₺50.000"]
-        U2["Kullanıcı: Ayşe<br/>user_id: 32<br/>bakiye: ₺30.000"]
+        U1["Kullanıcı: Ahmet<br/>user_id: 31<br/>bakiye: ₺50.000"]
+        U2["Kullanıcı: Ayşe<br/>user_id: 32<br/>bakiye: ₺30.000"]
         
-        A1["ad_account<br/>id: 1<br/>account_id: 1111111111<br/>user_id: 31"]
-        A2["ad_account<br/>id: 2<br/>account_id: 2222222222<br/>user_id: 31"]
-        A3["ad_account<br/>id: 3<br/>account_id: 3333333333<br/>user_id: 32"]
+        A1["ad_accounts #1<br/>account_id: 1111111111<br/>user_id: 31"]
+        A2["ad_accounts #2<br/>account_id: 2222222222<br/>user_id: 31"]
+        A3["ad_accounts #3<br/>account_id: 3333333333<br/>user_id: 32"]
         
         U1 --> A1
         U1 --> A2
         U2 --> A3
     end
-    
+
     C1 -.-> A1
     C2 -.-> A2
     C3 -.-> A3
 ```
-
 ### Nasıl Çalışır?
 
 1. **MCC (Yönetici Hesap)**
