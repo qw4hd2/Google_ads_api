@@ -138,7 +138,7 @@ graph TD
 3. **Admin adds Customer ID** to `ad_accounts` table
 4. **System starts tracking** spend, invoices, status via API
 5. **Customer sees data** in their dashboard
-```
+
 
 ## Turkish Version:
 
