@@ -1,8 +1,3 @@
-I'll create two markdown files for you - one in English and one in Turkish.
-
-## English Version:
-
-```markdown
 # Google Ads API Integration - System Architecture
 
 ## System Structure Overview
@@ -13,28 +8,28 @@ I'll create two markdown files for you - one in English and one in Turkish.
 graph TD
     subgraph "Google Ads Infrastructure"
         MCC["MCC (Manager Account)<br/>ID: 1234567890<br/>Role: Container Only"]
-        C1["Customer Account 1<br/>ID: 1111111111"]
-        C2["Customer Account 2<br/>ID: 2222222222"]
-        C3["Customer Account 3<br/>ID: 3333333333"]
+        C1["Customer Account 1<br/>ID: 1111111111"]
+        C2["Customer Account 2<br/>ID: 2222222222"]
+        C3["Customer Account 3<br/>ID: 3333333333"]
         
         MCC --> C1
         MCC --> C2
         MCC --> C3
     end
-    
+
     subgraph "Your Platform Database"
-        U1["User: John<br/>user_id: 31<br/>balance: $5000"]
-        U2["User: Sarah<br/>user_id: 32<br/>balance: $3000"]
+        U1["User: John<br/>user_id: 31<br/>balance: $5000"]
+        U2["User: Sarah<br/>user_id: 32<br/>balance: $3000"]
         
-        A1["ad_account<br/>id: 1<br/>account_id: 1111111111<br/>user_id: 31"]
-        A2["ad_account<br/>id: 2<br/>account_id: 2222222222<br/>user_id: 31"]
-        A3["ad_account<br/>id: 3<br/>account_id: 3333333333<br/>user_id: 32"]
+        A1["ad_accounts #1<br/>account_id: 1111111111<br/>user_id: 31"]
+        A2["ad_accounts #2<br/>account_id: 2222222222<br/>user_id: 31"]
+        A3["ad_accounts #3<br/>account_id: 3333333333<br/>user_id: 32"]
         
         U1 --> A1
         U1 --> A2
         U2 --> A3
     end
-    
+
     C1 -.-> A1
     C2 -.-> A2
     C3 -.-> A3
